@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Slot Bakery Defense</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+  body {
+    background: #141824;
+    color: #ffffff;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+  #game-container {
+    width: 100%;
+    max-width: 480px;
+    height: 100vh;
+    max-height: 820px;
+    background: #1e2436;
+    display: flex;
+    flex-direction: column;
+    border: 2px solid #2f3854;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    position: relative;
+  }
+  #hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #161b29;
+    border-bottom: 2px solid #2f3854;
+    font-weight: bold;
+    font-size: 16px;
+  }
+  .stat-box { display: flex; align-items: center; gap: 6px; }
+  .hearts { color: #ff5c7c; letter-spacing: 2px; }
+  .score { color: #ffd166; }
+  .wave { color: #4cc9f0; }
+
+  canvas {
+    flex: 1;
+    width: 100%;
+    display: block;
+    background: linear-gradient(180deg, #232a40 0%, #1b2133 78%, #2d3752 78%, #252e45 100%);
+  }
+
+  #slot-panel {
+    background: #161b29;
+    border-top: 3px solid #3a466b;
+    padding: 14px 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  #banner-msg {
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: #a8b5d1;
+    min-height: 20px;
+    letter-spacing: 0.4px;
+  }
+  #reels {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .reel {
+    background: #252e47;
+    border: 3px solid #3f4d75;
+    border-radius: 14px;
+    height: 82px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    transition: transform 0.12s ease, border-color 0.2s ease;
+  }
+  .reel.pop { transform: scale(1.08); border-color: #ffd166; }
+  .reel-icon { font-size: 34px; line-height: 1; }
+  .reel-label { font-size: 11px; font-weight: 700; margin-top: 4px; color: #cbd5e1; text-transform: uppercase; }
+
+  #spin-btn {
+    background: linear-gradient(180deg, #ffbe0b 0%, #fb8500 100%);
+    color: #141824;
+    border: none;
+    border-radius: 14px;
+    padding: 16px;
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    cursor: pointer;
+    box-shadow: 0 5px 0 #b85d00;
+    transition: transform 0.08s ease;
+  }
+  #spin-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #b85d00; }
+  #spin-btn:disabled {
+    background: #475569;
+    color: #94a3b8;
+    box-shadow: 0 5px 0 #334155;
+    cursor: not-allowed;
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 19, 30, 0.9);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 24px;
+    z-index: 10;
+  }
+  #overlay.hidden { display: none; }
+  #overlay h1 { font-size: 32px; color: #ffd166; margin-bottom: 10px; }
+  #overlay p { font-size: 15px; color: #cbd5e1; line-height: 1.5; max-width: 320px; margin-bottom: 22px; }
+  #start-btn {
+    background: #06d6a0;
+    color: #0f172a;
+    border: none;
+    border-radius: 12px;
+    padding: 14px 32px;
+    font-size: 18px;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #049670;
+  }
+  .legend {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 22px;
+    font-size: 13px;
+    background: #1e263b;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #334155;
+  }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <div id="hud">
+    <div class="stat-box hearts" id="hearts-display">♥♥♥♥♥</div>
+    <div class="stat-box wave" id="wave-display">GOAL: 150</div>
+    <div class="stat-box score" id="score-display">SCORE: 0</div>
+  </div>
+
+  <canvas id="battlefield"></canvas>
+
+  <div id="slot-panel">
+    <div id="banner-msg">Tap SPIN to summon defenders!</div>
+    <div id="reels">
+      <div class="reel" id="reel-0"><div class="reel-icon">🐱</div><div class="reel-label">Cat</div></div>
+      <div class="reel" id="reel-1"><div class="reel-icon">🤖</div><div class="reel-label">Robot</div></div>
+      <div class="reel" id="reel-2"><div class="reel-icon">🍪</div><div class="reel-label">Cookie</div></div>
+    </div>
+    <button id="spin-btn">SPIN (10 LEFT)</button>
+  </div>
+
+  <div id="overlay">
+    <h1 id="overlay-title">SLOT BAKERY</h1>
+    <p id="overlay-desc">Spin the magic slot to summon Cats & Robots and defend your Bakery from Hungry Ghosts!</p>
+    <div class="legend">
+      <span>🐱 Scout (1 Hit)</span>
+      <span>🤖 Tank (3 Hits)</span>
+      <span>🍪 +1 Spin</span>
+    </div>
+    <button id="start-btn">PLAY NOW</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  // --- Web Audio API Synthesizer (Zero External Audio Files) ---
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  let audioCtx = null;
+
+  function playTone(freq, type, duration, vol = 0.12, slideTo = null) {
+    if (!audioCtx) audioCtx = new AudioCtx();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, audioCtx.currentTime + duration);
+    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  }
+
+  const sfx = {
+    tick: () => playTone(520, 'triangle', 0.05, 0.08),
+    spawn: () => playTone(380, 'sine', 0.14, 0.12, 660),
+    jackpot: () => {
+      playTone(523, 'square', 0.12, 0.1);
+      setTimeout(() => playTone(659, 'square', 0.12, 0.1), 90);
+      setTimeout(() => playTone(784, 'square', 0.25, 0.12), 180);
+    },
+    pop: () => playTone(260, 'sawtooth', 0.1, 0.1, 90),
+    hurt: () => playTone(150, 'sawtooth', 0.28, 0.16, 55),
+    win: () => {
+      [523, 659, 784, 1046].forEach((n, i) => setTimeout(() => playTone(n, 'triangle', 0.2, 0.12), i * 110));
+    }
+  };
+
+  // --- Game Setup ---
+  const canvas = document.getElementById('battlefield');
+  const ctx = canvas.getContext('2d');
+  const spinBtn = document.getElementById('spin-btn');
+  const bannerMsg = document.getElementById('banner-msg');
+  const heartsDisplay = document.getElementById('hearts-display');
+  const scoreDisplay = document.getElementById('score-display');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlay-title');
+  const overlayDesc = document.getElementById('overlay-desc');
+  const startBtn = document.getElementById('start-btn');
+
+  const SYMBOLS = [
+    { id: 'cat', icon: '🐱', label: 'Cat' },
+    { id: 'robot', icon: '🤖', label: 'Robot' },
+    { id: 'cookie', icon: '🍪', label: 'Cookie' }
+  ];
+
+  const WIN_SCORE = 150;
+  let state = {
+    running: false,
+    hearts: 5,
+    score: 0,
+    spins: 10,
+    spinning: false,
+    units: [],
+    enemies: [],
+    particles: [],
+    laserTimer: 0,
+    spawnTimer: 0,
+    spawnInterval: 2.3,
+    lastTime: 0
+  };
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  function updateHUD() {
+    heartsDisplay.textContent = '♥'.repeat(Math.max(0, state.hearts)) + '♡'.repeat(Math.max(0, 5 - state.hearts));
+    scoreDisplay.textContent = `SCORE: ${state.score}`;
+    spinBtn.textContent = state.spinning ? 'SPINNING...' : `SPIN (${state.spins} LEFT)`;
+    spinBtn.disabled = state.spinning || state.spins <= 0 || !state.running;
+  }
+
+  function addParticles(x, y, color, count = 10) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 40 + Math.random() * 120;
+      state.particles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 30,
+        life: 0.45 + Math.random() * 0.25,
+        color,
+        size: 4 + Math.random() * 4
+      });
+    }
+  }
+
+  function spawnUnit(type, offsetIndex = 0) {
+    const groundY = canvas.height * 0.78;
+    const isRobot = type === 'robot';
+    state.units.push({
+      type,
+      x: 54 - offsetIndex * 22,
+      y: groundY - (isRobot ? 22 : 15),
+      r: isRobot ? 22 : 15,
+      hp: isRobot ? 3 : 1,
+      speed: isRobot ? 58 : 95,
+      color: isRobot ? '#4cc9f0' : '#ff70a6'
+    });
+  }
+
+  function spawnEnemy() {
+    const groundY = canvas.height * 0.78;
+    const isHeavy = state.score >= 60 && Math.random() < 0.28;
+    state.enemies.push({
+      x: canvas.width + 20,
+      y: groundY - (isHeavy ? 20 : 16),
+      r: isHeavy ? 20 : 16,
+      hp: isHeavy ? 2 : 1,
+      speed: (isHeavy ? 36 : 48) + Math.min(28, state.score * 0.18),
+      color: isHeavy ? '#9b5de5' : '#f15bb5',
+      wobble: Math.random() * Math.PI * 2
+    });
+  }
+
+  // --- Slot Machine Logic ---
+  function triggerSpin() {
+    if (state.spinning || state.spins <= 0 || !state.running) return;
+    state.spins--;
+    state.spinning = true;
+    bannerMsg.textContent = 'Rolling...';
+    bannerMsg.style.color = '#ffd166';
+    updateHUD();
+
+    const finalResults = [
+      SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
+      SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
+      SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]
+    ];
+
+    let ticks = 0;
+    const maxTicks = 12;
+    const interval = setInterval(() => {
+      ticks++;
+      sfx.tick();
+      for (let i = 0; i < 3; i++) {
+        const reelEl = document.getElementById(`reel-${i}`);
+        const showSym = (ticks >= maxTicks - (2 - i) * 2)
+          ? finalResults[i]
+          : SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+        reelEl.querySelector('.reel-icon').textContent = showSym.icon;
+        reelEl.querySelector('.reel-label').textContent = showSym.label;
+        if (ticks === maxTicks) {
+          reelEl.classList.add('pop');
+          setTimeout(() => reelEl.classList.remove('pop'), 220);
+        }
+      }
+
+      if (ticks >= maxTicks) {
+        clearInterval(interval);
+        resolveSpin(finalResults);
+      }
+    }, 65);
+  }
+
+  function resolveSpin(results) {
+    state.spinning = false;
+    const ids = results.map(r => r.id);
+    const allMatch = ids[0] === ids[1] && ids[1] === ids[2];
+
+    if (allMatch) {
+      sfx.jackpot();
+      if (ids[0] === 'cat') {
+        bannerMsg.textContent = 'JACKPOT! 5 Turbo Cats Summoned!';
+        bannerMsg.style.color = '#ff70a6';
+        for (let i = 0; i < 5; i++) spawnUnit('cat', i);
+      } else if (ids[0] === 'robot') {
+        bannerMsg.textContent = 'MEGA JACKPOT! Laser Beam + 2 Robots!';
+        bannerMsg.style.color = '#4cc9f0';
+        state.laserTimer = 0.45;
+        state.score += state.enemies.length * 10;
+        state.enemies.forEach(e => addParticles(e.x, e.y, '#4cc9f0', 12));
+        state.enemies = [];
+        spawnUnit('robot', 0);
+        spawnUnit('robot', 1);
+      } else if (ids[0] === 'cookie') {
+        bannerMsg.textContent = 'COOKIE JACKPOT! +4 Extra Spins!';
+        bannerMsg.style.color = '#ffd166';
+        state.spins += 4;
+      }
+    } else {
+      let cats = 0, robots = 0, cookies = 0;
+      ids.forEach((id, idx) => {
+        if (id === 'cat') { spawnUnit('cat', idx); cats++; }
+        if (id === 'robot') { spawnUnit('robot', idx); robots++; }
+        if (id === 'cookie') { state.spins += 1; cookies++; }
+      });
+      sfx.spawn();
+      const parts = [];
+      if (cats) parts.push(`+${cats} Cat`);
+      if (robots) parts.push(`+${robots} Robot`);
+      if (cookies) parts.push(`+${cookies} Spin`);
+      bannerMsg.textContent = parts.join(' • ');
+      bannerMsg.style.color = '#cbd5e1';
+    }
+
+    // Emergency free spin if board is empty and player runs out of spins
+    if (state.spins === 0 && state.units.length === 0) {
+      state.spins = 1;
+      bannerMsg.textContent = 'Bakery Gift: +1 Last Chance Spin!';
+      bannerMsg.style.color = '#06d6a0';
+    }
+
+    updateHUD();
+    checkWinLoss();
+  }
+
+  function checkWinLoss() {
+    if (state.score >= WIN_SCORE) {
+      state.running = false;
+      sfx.win();
+      overlayTitle.textContent = 'BAKERY SAVED!';
+      overlayTitle.style.color = '#06d6a0';
+      overlayDesc.textContent = `You reached ${state.score} points and protected the Midnight Bakery!`;
+      startBtn.textContent = 'PLAY AGAIN';
+      overlay.classList.remove('hidden');
+    } else if (state.hearts <= 0) {
+      state.running = false;
+      overlayTitle.textContent = 'OUT OF HEARTS';
+      overlayTitle.style.color = '#ff5c7c';
+      overlayDesc.textContent = `The Hungry Ghosts ate the pastries! Final Score: ${state.score}`;
+      startBtn.textContent = 'TRY AGAIN';
+      overlay.classList.remove('hidden');
+    }
+  }
+
+  // --- Main Loop & Geometric Rendering ---
+  function update(dt) {
+    if (!state.running) return;
+
+    state.spawnTimer += dt;
+    const currentInterval = Math.max(1.1, state.spawnInterval - state.score * 0.006);
+    if (state.spawnTimer >= currentInterval) {
+      state.spawnTimer = 0;
+      spawnEnemy();
+    }
+
+    if (state.laserTimer > 0) state.laserTimer -= dt;
+
+    // Move friendly units
+    state.units.forEach(u => { u.x += u.speed * dt; });
+    state.units = state.units.filter(u => u.x < canvas.width + 30 && u.hp > 0);
+
+    // Move enemies
+    state.enemies.forEach(e => {
+      e.x -= e.speed * dt;
+      e.wobble += dt * 6;
+    });
+
+    // Collisions: Units vs Enemies
+    for (let u of state.units) {
+      for (let e of state.enemies) {
+        if (u.hp > 0 && e.hp > 0 && Math.abs(u.x - e.x) < u.r + e.r - 4) {
+          u.hp -= 1;
+          e.hp -= 1;
+          sfx.pop();
+          addParticles(e.x, e.y, e.color, 10);
+          if (e.hp <= 0) {
+            state.score += 10;
+            updateHUD();
+            checkWinLoss();
+          }
+        }
+      }
+    }
+
+    // Collisions: Enemies vs Bakery (Left side x <= 46)
+    for (let e of state.enemies) {
+      if (e.hp > 0 && e.x - e.r <= 46) {
+        e.hp = 0;
+        state.hearts -= 1;
+        sfx.hurt();
+        addParticles(46, e.y, '#ff5c7c', 16);
+        updateHUD();
+        checkWinLoss();
+      }
+    }
+
+    state.enemies = state.enemies.filter(e => e.hp > 0);
+
+    // Particles
+    state.particles.forEach(p => {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 260 * dt;
+      p.life -= dt;
+    });
+    state.particles = state.particles.filter(p => p.life > 0);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const groundY = canvas.height * 0.78;
+
+    // Draw Bakery Base on Left
+    ctx.fillStyle = '#ffb703';
+    ctx.fillRect(10, groundY - 64, 42, 64);
+    ctx.fillStyle = '#fb8500';
+    ctx.beginPath();
+    ctx.moveTo(6, groundY - 64);
+    ctx.lineTo(31, groundY - 88);
+    ctx.lineTo(56, groundY - 64);
+    ctx.closePath();
+    ctx.fill();
+    // Door
+    ctx.fillStyle = '#582f0e';
+    ctx.fillRect(24, groundY - 26, 14, 26);
+
+    // Draw Laser Beam if active
+    if (state.laserTimer > 0) {
+      ctx.fillStyle = `rgba(76, 201, 240, ${state.laserTimer * 1.8})`;
+      ctx.fillRect(52, groundY - 34, canvas.width, 24);
+    }
+
+    // Draw Friendly Units
+    for (let u of state.units) {
+      ctx.fillStyle = u.color;
+      if (u.type === 'cat') {
+        // Circle body + triangle ears
+        ctx.beginPath();
+        ctx.arc(u.x, u.y, u.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(u.x - 10, u.y - 10);
+        ctx.lineTo(u.x - 6, u.y - 22);
+        ctx.lineTo(u.x - 1, u.y - 12);
+        ctx.moveTo(u.x + 10, u.y - 10);
+        ctx.lineTo(u.x + 6, u.y - 22);
+        ctx.lineTo(u.x + 1, u.y - 12);
+        ctx.fill();
+      } else {
+        // Robot rounded square + antenna
+        ctx.fillRect(u.x - u.r, u.y - u.r, u.r * 2, u.r * 2);
+        ctx.fillStyle = '#ffd166';
+        ctx.fillRect(u.x - 2, u.y - u.r - 8, 4, 8);
+      }
+      // Eyes
+      ctx.fillStyle = '#141824';
+      ctx.fillRect(u.x + 4, u.y - 4, 4, 4);
+    }
+
+    // Draw Hungry Ghosts
+    for (let e of state.enemies) {
+      const bob = Math.sin(e.wobble) * 3;
+      ctx.fillStyle = e.color;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y + bob, e.r, Math.PI, 0);
+      ctx.lineTo(e.x + e.r, e.y + e.r + bob);
+      ctx.lineTo(e.x - e.r, e.y + e.r + bob);
+      ctx.closePath();
+      ctx.fill();
+      // Eyes
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(e.x - 5, e.y - 2 + bob, 3.5, 0, Math.PI * 2);
+      ctx.arc(e.x + 3, e.y - 2 + bob, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Draw Particles
+    for (let p of state.particles) {
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = Math.max(0, p.life * 1.5);
+      ctx.fillRect(p.x, p.y, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function loop(timestamp) {
+    const dt = Math.min(0.05, (timestamp - state.lastTime) / 1000 || 0);
+    state.lastTime = timestamp;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function startGame() {
+    state = {
+      running: true,
+      hearts: 5,
+      score: 0,
+      spins: 10,
+      spinning: false,
+      units: [],
+      enemies: [],
+      particles: [],
+      laserTimer: 0,
+      spawnTimer: 1.2,
+      spawnInterval: 2.3,
+      lastTime: performance.now()
+    };
+    bannerMsg.textContent = 'Tap SPIN to summon defenders!';
+    bannerMsg.style.color = '#a8b5d1';
+    overlay.classList.add('hidden');
+    updateHUD();
+    spawnEnemy();
+  }
+
+  spinBtn.addEventListener('click', triggerSpin);
+  startBtn.addEventListener('click', startGame);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
